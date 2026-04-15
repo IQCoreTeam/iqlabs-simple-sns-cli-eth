@@ -104,7 +104,10 @@ export class FileShareService {
         for (const entry of entries) {
             try {
                 const meta: any = await reader.fetchTableMeta(PLAZA_DB_ROOT, entry.name);
-                const writers = (meta?.writers ?? []) as string[];
+                // meta.writers comes back as an ethers Result proxy; spread
+                // it into a plain array before indexing. Accessing [0] on an
+                // empty Result throws `out of result range`.
+                const writers: string[] = [...(meta?.writers ?? [])];
                 const isPublic = writers.length === 0;
                 const owner = writers[0];
                 const ownerLabel = isPublic
