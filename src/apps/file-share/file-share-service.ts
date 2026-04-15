@@ -89,7 +89,9 @@ export class FileShareService {
     async listPlazaFolders(): Promise<PlazaFolder[]> {
         // One RPC for the names, then one getTable per entry to learn
         // isPublic / owner. Still cheaper than the previous N getTable calls
-        // that also had to decode bytes fields.
+        // that also had to decode bytes fields. Throws if the plaza root
+        // hasn't been initialized — caller should run `ensurePlazaRoot`
+        // before entering the file-share menu.
         const root = await reader.getTablelistFromRoot(PLAZA_DB_ROOT);
         const seen = new Set<string>();
         const entries = [...root.tables, ...root.globalTables].filter((e) => {

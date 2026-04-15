@@ -521,6 +521,17 @@ const MENU_ITEMS: { label: string; action: string | null }[] = [
 export const runFileShareMenu = async () => {
     const service = new FileShareService();
 
+    // Lazy init: on a fresh contract the IQ Plaza DbRoot doesn't exist yet.
+    // Every plaza flow (listPlazaFolders / upload / browse) needs the root,
+    // so we initialize once on menu entry.
+    try {
+        await withTxProgress("Ensure IQ Plaza db root", () => service.ensurePlazaRoot());
+    } catch (err) {
+        logError("Couldn't initialize IQ Plaza", err);
+        await prompt("Press Enter to continue...");
+        return;
+    }
+
     while (true) {
         const header = `${FILE_SHARE_LOGO}\n  ${DIM}wallet: ${GREEN}${shortenSig(service.myAddress)}${RESET}`;
         const idx = await selectFromList(header, MENU_ITEMS, (item, selected) => {

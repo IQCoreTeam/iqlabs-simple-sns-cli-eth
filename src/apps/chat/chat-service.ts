@@ -111,7 +111,10 @@ export class ChatService {
     // ---- rooms ----
 
     async listRooms(): Promise<{ name: string; seedHex: string }[]> {
-        // One RPC: getDbRoot returns names + seeds already paired.
+        // One RPC: getDbRoot returns names + seeds already paired. Throws if
+        // the chat root hasn't been initialized — caller should run
+        // `ensureDbRoot` before entering the chat menu (runChatMenu already
+        // does this once on entry).
         const root = await reader.getTablelistFromRoot(CHAT_DB_ROOT);
         const seen = new Set<string>();
         const rooms: { name: string; seedHex: string }[] = [];
