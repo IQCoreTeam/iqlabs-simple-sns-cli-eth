@@ -23,15 +23,7 @@ import {
 import { prompt, selectFromList } from "../../utils/prompt.js";
 import { shortenSig } from "../../utils/format.js";
 import { withTxProgress } from "../../utils/tx-progress.js";
-
-const CHAT_LOGO = `${BOLD}${CYAN}
-  ███████╗████████╗██╗  ██╗     ██████╗██╗  ██╗ █████╗ ████████╗
-  ██╔════╝╚══██╔══╝██║  ██║    ██╔════╝██║  ██║██╔══██╗╚══██╔══╝
-  █████╗     ██║   ███████║    ██║     ███████║███████║   ██║
-  ██╔══╝     ██║   ██╔══██║    ██║     ██╔══██║██╔══██║   ██║
-  ███████╗   ██║   ██║  ██║    ╚██████╗██║  ██║██║  ██║   ██║
-  ╚══════╝   ╚═╝   ╚═╝  ╚═╝     ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝${RESET}
-`;
+import { getBrand } from "../../utils/branding.js";
 
 const CHAT_MENU_ITEMS: { label: string; action: string | null }[] = [
     { label: "Join Room", action: "rooms" },
@@ -335,15 +327,6 @@ const createRoomFlow = async (service: ChatService) => {
 
 // ---- menus ----
 
-const DM_LOGO = `${BOLD}${CYAN}
-  ██████╗ ███╗   ███╗
-  ██╔══██╗████╗ ████║
-  ██║  ██║██╔████╔██║
-  ██║  ██║██║╚██╔╝██║
-  ██████╔╝██║ ╚═╝ ██║
-  ╚═════╝ ╚═╝     ╚═╝${RESET}
-`;
-
 const renderMenuItem = (item: { label: string; action: string | null }, selected: boolean) => {
     if (item.action === null) {
         return selected
@@ -356,8 +339,9 @@ const renderMenuItem = (item: { label: string; action: string | null }, selected
 };
 
 const runDmMenu = async (service: ChatService) => {
+    const brand = getBrand();
     while (true) {
-        const index = await selectFromList(DM_LOGO, DM_MENU_ITEMS, renderMenuItem);
+        const index = await selectFromList(brand.dmLogo, DM_MENU_ITEMS, renderMenuItem);
         if (index === null || DM_MENU_ITEMS[index].action === null) break;
         try {
             switch (DM_MENU_ITEMS[index].action) {
@@ -380,6 +364,7 @@ const runDmMenu = async (service: ChatService) => {
 
 export const runChatMenu = async () => {
     const service = new ChatService();
+    const brand = getBrand();
     try {
         await withTxProgress("Ensure chat db root", () => service.ensureDbRoot());
     } catch (err) {
@@ -389,7 +374,7 @@ export const runChatMenu = async () => {
     }
 
     while (true) {
-        const index = await selectFromList(CHAT_LOGO, CHAT_MENU_ITEMS, renderMenuItem);
+        const index = await selectFromList(brand.chatLogo, CHAT_MENU_ITEMS, renderMenuItem);
         if (index === null || CHAT_MENU_ITEMS[index].action === null) break;
         try {
             switch (CHAT_MENU_ITEMS[index].action) {

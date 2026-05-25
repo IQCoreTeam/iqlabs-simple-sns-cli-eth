@@ -9,7 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@iqlabs-official/ethereum-sdk": "file:../iq-ethereum-sdk",
+    "@iqlabs-official/ethereum-sdk": "^0.1.3",
     "dotenv": "^17.2.3",
     "ethers": "^6.16.0"
   },
