@@ -5,24 +5,21 @@
 // fee-too-small revert surfaces in ethers as the unhelpful
 //   "missing revert data (action='estimateGas', data=null, reason=null, ...)"
 // We check upfront and raise a message that names the actual fee and balance.
+//
+// Fee model (SDK >= 0.2.0, mirrors solana):
+//   - chat/DM/inventory writes (writeRow / writeConnectionRow / codeIn) charge
+//     basicFee when the payload fits inline (<= DIRECT_METADATA_MAX_BYTES)
+//     and linkedListFee when sendCode-chained
+//   - createRoom (createTable) charges tableCreationFee — possibly overridden
+//     per dbRoot, so we ask the SDK for the *effective* value
 
 import { formatEther, type Wallet } from "ethers";
-import { utils as sdkUtils } from "@iqlabs-official/ethereum-sdk";
+import {
+    utils as sdkUtils,
+    constants as sdkConstants,
+} from "@iqlabs-official/ethereum-sdk";
 
 import { getBrand } from "./branding.js";
-
-// Which contract fees a given action will be charged. From the ABI:
-//   linkedListFee  -> createTable / requestConnection / updateTableTxChainTail
-//                     / updateConnectionTxChainTail (all payable). So:
-//                       createRoom, sendChat (writeRow), sendDm
-//                       (writeConnectionRow), requestConnection.
-//   basicFee       -> updateUserTxChainTail (payable). Only the inventory
-//                     upload path (codeIn / file-share to "My Inventory")
-//                     touches this.
-// Pass the list that matches the SDK call(s) the action triggers; the
-// in-between code-in calls (dbCodeIn / walletConnectionCodeIn /
-// userInventoryCodeIn) are nonpayable and don't add to the bill.
-export type FeeKind = "basic" | "linkedList";
 
 export class InsufficientFeeError extends Error {
     constructor(message: string) {
@@ -31,27 +28,40 @@ export class InsufficientFeeError extends Error {
     }
 }
 
-export async function assertCanPayFee(
-    wallet: Wallet,
-    kinds: FeeKind[],
-): Promise<void> {
-    const [basicFee, linkedListFee] = await Promise.all([
-        kinds.includes("basic") ? sdkUtils.getBasicFee(wallet) : Promise.resolve(0n),
-        kinds.includes("linkedList") ? sdkUtils.getLinkedListFee(wallet) : Promise.resolve(0n),
-    ]);
-    const fee = basicFee + linkedListFee;
+// Decide whether a JSON-stringified row payload will be sent inline (basicFee)
+// or via a sendCode chain (linkedListFee). Matches SDK prepareUpload's branch.
+const isInlinePayload = (rowJson: string): boolean =>
+    Buffer.byteLength(rowJson, "utf8") <= sdkConstants.DIRECT_METADATA_MAX_BYTES;
+
+async function assertCanPay(wallet: Wallet, fee: bigint, label: string): Promise<void> {
+    if (fee === 0n) return;
     const balance = await wallet.provider!.getBalance(wallet.address);
     if (balance >= fee) return;
-
     const { currency } = getBrand();
-    const need = formatEther(fee);
-    const have = formatEther(balance);
-    const short = formatEther(fee - balance);
-    const breakdown = kinds.length > 1
-        ? ` (basicFee ${formatEther(basicFee)} + linkedListFee ${formatEther(linkedListFee)})`
-        : "";
     throw new InsufficientFeeError(
-        `needs ${need} ${currency}${breakdown} but wallet has ${have} ${currency} `
-        + `(short ${short}). Top up and try again.`,
+        `${label} needs ${formatEther(fee)} ${currency} but wallet has ${formatEther(balance)} ${currency} `
+        + `(short ${formatEther(fee - balance)}). Top up and try again.`,
     );
+}
+
+// For a row-style write (chat, DM, inventory). Pass the exact JSON the SDK
+// will serialise so we pick the right tier.
+export async function assertCanPayRowWrite(
+    wallet: Wallet,
+    rowJson: string,
+): Promise<void> {
+    const inline = isInlinePayload(rowJson);
+    const fee = inline
+        ? await sdkUtils.getBasicFee(wallet)
+        : await sdkUtils.getLinkedListFee(wallet);
+    await assertCanPay(wallet, fee, inline ? "Send (inline)" : "Send (chunked)");
+}
+
+// For createTable / createPrivateTable. Reads the per-root override when set.
+export async function assertCanPayCreateTable(
+    wallet: Wallet,
+    dbRootId: string,
+): Promise<void> {
+    const fee = await sdkUtils.getEffectiveTableCreationFee(wallet, dbRootId);
+    await assertCanPay(wallet, fee, "Create room");
 }
