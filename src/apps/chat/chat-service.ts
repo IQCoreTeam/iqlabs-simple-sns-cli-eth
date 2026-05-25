@@ -4,6 +4,7 @@ import type { Wallet } from "ethers";
 import { getWallet } from "../../utils/wallet.js";
 import { makeMessageId } from "../../utils/id.js";
 import { logStep, logSuccess } from "../../utils/logger.js";
+import { assertCanPayFee } from "../../utils/preflight.js";
 
 // Chat room default schema.
 const DM_COLUMNS = ["id", "text", "sender", "timestamp"];
@@ -138,6 +139,7 @@ export class ChatService {
             const msg = err instanceof Error ? err.message : String(err);
             if (!/Table not found/i.test(msg)) throw err;
         }
+        await assertCanPayFee(this.wallet, ["linkedList"]);
         const txHash = await writer.createTable(
             this.wallet,
             CHAT_DB_ROOT,
@@ -151,6 +153,7 @@ export class ChatService {
     async sendChat(roomName: string, message: string, handle?: string): Promise<string> {
         const trimmed = message.trim();
         if (!trimmed) throw new Error("message is empty");
+        await assertCanPayFee(this.wallet, ["basic", "linkedList"]);
         return writer.writeRow(
             this.wallet,
             CHAT_DB_ROOT,
@@ -211,6 +214,7 @@ export class ChatService {
 
         await this.ensureMyDhKey();
         const partnerPub = await this.lookupDhKey(partner);
+        await assertCanPayFee(this.wallet, ["basic", "linkedList"]);
 
         const sender = handle?.trim() || this.myAddress;
         const base = { id: makeMessageId(12), sender, timestamp: Date.now() };
