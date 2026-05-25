@@ -9,11 +9,11 @@ Everything lives on-chain. No backend servers.
 
 **Supported chains** (auto-detected from your RPC's chainId):
 
-| Mode | Chain ID | Currency | Brand |
-|---|---|---|---|
-| Sepolia | 11155111 | ETH | `EthChat`, IQLABS logo |
-| Monad | 143 | MON | `MonadChat`, MONAD logo |
-| Monad Testnet | 10143 | MON | `MonadChat`, MONAD logo |
+| Mode | Chain ID | Currency | Explorer | Brand |
+|---|---|---|---|---|
+| Sepolia | 11155111 | ETH | [sepolia.etherscan.io](https://sepolia.etherscan.io) | `EthChat`, IQLABS logo |
+| Monad | 143 | MON | [monadvision.com](https://monadvision.com) | `MonadChat`, MONAD logo |
+| Monad Testnet | 10143 | MON | [testnet.monadexplorer.com](https://testnet.monadexplorer.com) | `MonadChat`, MONAD logo |
 
 Same binary — point it at a Monad RPC and the CLI rebrands itself.
 
@@ -73,21 +73,38 @@ startup and switches its mode (Sepolia → EthChat, Monad → MonadChat).
 
 Other providers (Infura, QuickNode, your own geth/erigon node) work too.
 
-### Option B — Monad Testnet (public RPC)
+### Option B — Monad Testnet (chainId `10143`)
 
-No signup. Use the public Monad testnet endpoint directly:
+No signup needed — pick any public endpoint. Official first, third-party as fallback:
 
-```
-https://testnet-rpc.monad.xyz
-```
+| Provider | HTTP endpoint | Notes |
+|---|---|---|
+| **Monad official** | `https://testnet-rpc.monad.xyz` | Recommended starting point |
+| dRPC | `https://monad-testnet.drpc.org` | Free public endpoint |
+| Alchemy | `https://monad-testnet.g.alchemy.com/v2/YOUR_KEY` | Free key works |
+| QuickNode | from QuickNode dashboard | Free tier |
+| Chainstack | from Chainstack dashboard | 3M RU/month free |
 
-When the CLI sees chainId `10143` it flips into Monad mode automatically.
+ChainList catalogue: <https://chainlist.org/chain/10143>.
 
-### Option C — Monad Mainnet
+When the CLI sees chainId `10143` it flips into Monad Testnet mode automatically
+(MONAD logo, `MonadChat`, balance in MON).
 
-```
-https://rpc.monad.xyz
-```
+### Option C — Monad Mainnet (chainId `143`)
+
+Mainnet went live **2025-11-24**. Official endpoints (per
+[Monad docs](https://docs.monad.xyz/developer-essentials/network-information)):
+
+| Provider | HTTP endpoint | Rate limit |
+|---|---|---|
+| QuickNode | `https://rpc.monad.xyz` | 25 rps |
+| Alchemy | `https://rpc1.monad.xyz` | 15 rps |
+| Goldsky Edge | `https://rpc2.monad.xyz` | 300 / 10s |
+| Ankr | `https://rpc3.monad.xyz` | 300 / 10s |
+| Monad Foundation | `https://rpc-mainnet.monadinfra.com` | 20 rps |
+
+WebSocket variants exist on the same host with `wss://`. Block explorer:
+<https://monadvision.com> (alt: <https://monadscan.com>).
 
 > The CLI auto-derives the WebSocket URL from the HTTP one (`https://` →
 > `wss://`). If your provider needs a different WS endpoint, set
@@ -131,13 +148,20 @@ which RPC you point at). Read-only menus (browse rooms, browse plaza) still work
 
 ~0.05 Sepolia ETH is plenty.
 
-### Monad Testnet MON faucet
+### Monad Testnet MON faucets
 
-| Faucet | URL | Notes |
-|---|---|---|
-| Official Monad | https://faucet.monad.xyz/ | Daily drip per address |
+| Faucet | URL | Drip / cooldown | Notes |
+|---|---|---|---|
+| **Monad official** | https://faucet.monad.xyz/ | 0.05 MON / 12h | Requires 10 MON on Monad mainnet **or** 0.001 ETH on Ethereum/Base/Arbitrum/Polygon |
+| QuickNode | https://faucet.quicknode.com/monad | one drip / 12h | Free, no signup |
+| Alchemy | https://www.alchemy.com/faucets/monad-testnet | request / 24h | No authentication needed |
+| Chainlink | https://faucets.chain.link/monad-testnet | varies | Backup option |
+| Faucet Trade | https://faucet.trade/monad-testnet-mon-faucet | 0.02 MON / 24h | Backup option |
 
-A few MON is enough — Monad fees are tiny.
+A few MON is plenty. If chat entry fails with something like `could not decode
+result data (value="0x", ...)` on `ensureDbRoot`, fund the wallet from a faucet
+above and try again — the first chat-menu entry needs to send the
+`initializeDbRoot` transaction.
 
 Paste your wallet address (either your existing one or the one the CLI just generated)
 and claim.
@@ -240,6 +264,7 @@ Navigate with arrow keys, Enter to select, Esc to go back.
 | Header still says "Ethereum Internet CLI" on a Monad RPC | The chainId your RPC reported doesn't match any known mode. Confirm the RPC is actually Monad (curl the endpoint with `eth_chainId`) and that you're on SDK `^0.1.3`. |
 | Subscribe never fires new messages | Your RPC provider doesn't support WebSocket on this endpoint. Set `IQ_ETH_WSS_URL` explicitly. |
 | `DbRoot not found` after a fresh deploy | First run on a newly-deployed contract. The CLI auto-runs `initializeDbRoot` on first chat entry. |
+| `could not decode result data (value="0x", ...)` on chat entry | Almost always: wallet has no gas, so the auto `initializeDbRoot` write can't go through. Fund from a faucet (Step 4) and retry. |
 
 ---
 
