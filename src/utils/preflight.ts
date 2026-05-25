@@ -11,11 +11,17 @@ import { utils as sdkUtils } from "@iqlabs-official/ethereum-sdk";
 
 import { getBrand } from "./branding.js";
 
-// Which contract fees a given action will be charged. Most chat/file writes
-// follow the 2-tx pattern: a code-in (basicFee) + a chain-tail update
-// (linkedListFee). createTable / requestConnection / manageRowData charge
-// linkedListFee only. Pass the list that matches the SDK call you're about
-// to make.
+// Which contract fees a given action will be charged. From the ABI:
+//   linkedListFee  -> createTable / requestConnection / updateTableTxChainTail
+//                     / updateConnectionTxChainTail (all payable). So:
+//                       createRoom, sendChat (writeRow), sendDm
+//                       (writeConnectionRow), requestConnection.
+//   basicFee       -> updateUserTxChainTail (payable). Only the inventory
+//                     upload path (codeIn / file-share to "My Inventory")
+//                     touches this.
+// Pass the list that matches the SDK call(s) the action triggers; the
+// in-between code-in calls (dbCodeIn / walletConnectionCodeIn /
+// userInventoryCodeIn) are nonpayable and don't add to the bill.
 export type FeeKind = "basic" | "linkedList";
 
 export class InsufficientFeeError extends Error {

@@ -153,7 +153,7 @@ export class ChatService {
     async sendChat(roomName: string, message: string, handle?: string): Promise<string> {
         const trimmed = message.trim();
         if (!trimmed) throw new Error("message is empty");
-        await assertCanPayFee(this.wallet, ["basic", "linkedList"]);
+        await assertCanPayFee(this.wallet, ["linkedList"]);
         return writer.writeRow(
             this.wallet,
             CHAT_DB_ROOT,
@@ -214,7 +214,7 @@ export class ChatService {
 
         await this.ensureMyDhKey();
         const partnerPub = await this.lookupDhKey(partner);
-        await assertCanPayFee(this.wallet, ["basic", "linkedList"]);
+        await assertCanPayFee(this.wallet, ["linkedList"]);
 
         const sender = handle?.trim() || this.myAddress;
         const base = { id: makeMessageId(12), sender, timestamp: Date.now() };
