@@ -4,6 +4,10 @@ import type { Wallet } from "ethers";
 import { getWallet } from "../../utils/wallet.js";
 import { makeMessageId } from "../../utils/id.js";
 import { logStep, logSuccess } from "../../utils/logger.js";
+import {
+    assertCanPayCreateTable,
+    assertCanPayRowWrite,
+} from "../../utils/preflight.js";
 
 // Chat room default schema.
 const DM_COLUMNS = ["id", "text", "sender", "timestamp"];
@@ -138,6 +142,7 @@ export class ChatService {
             const msg = err instanceof Error ? err.message : String(err);
             if (!/Table not found/i.test(msg)) throw err;
         }
+        await assertCanPayCreateTable(this.wallet, CHAT_DB_ROOT);
         const txHash = await writer.createTable(
             this.wallet,
             CHAT_DB_ROOT,
@@ -151,17 +156,14 @@ export class ChatService {
     async sendChat(roomName: string, message: string, handle?: string): Promise<string> {
         const trimmed = message.trim();
         if (!trimmed) throw new Error("message is empty");
-        return writer.writeRow(
-            this.wallet,
-            CHAT_DB_ROOT,
-            roomName,
-            JSON.stringify({
-                id: makeMessageId(12),
-                text: trimmed,
-                sender: handle?.trim() || this.myAddress,
-                timestamp: Date.now(),
-            }),
-        );
+        const rowJson = JSON.stringify({
+            id: makeMessageId(12),
+            text: trimmed,
+            sender: handle?.trim() || this.myAddress,
+            timestamp: Date.now(),
+        });
+        await assertCanPayRowWrite(this.wallet, rowJson);
+        return writer.writeRow(this.wallet, CHAT_DB_ROOT, roomName, rowJson);
     }
 
     async readRoom(roomName: string, limit = 50): Promise<ChatRow[]> {
@@ -215,34 +217,28 @@ export class ChatService {
         const sender = handle?.trim() || this.myAddress;
         const base = { id: makeMessageId(12), sender, timestamp: Date.now() };
 
+        let rowJson: string;
         if (!partnerPub) {
             // Partner hasn't registered — fall back to plaintext so the CLI
             // still works. The menu layer surfaces a warning to the user.
-            return writer.writeConnectionRow(
-                this.wallet,
-                partner,
-                CHAT_DB_ROOT,
-                JSON.stringify({ ...base, text: trimmed, enc: 0 }),
+            rowJson = JSON.stringify({ ...base, text: trimmed, enc: 0 });
+        } else {
+            const me = await this.deriveDhKeypair();
+            const encrypted = await crypto.multiEncrypt(
+                [me.pubHex, partnerPub],
+                new TextEncoder().encode(trimmed),
             );
+            const envelope = {
+                m: "dm",
+                r: encrypted.recipients.map((r) => [r.recipientPub, r.ephemeralPub, r.wrappedKey, r.wrapIv]),
+                i: encrypted.iv,
+                c: encrypted.ciphertext,
+            };
+            rowJson = JSON.stringify({ ...base, text: JSON.stringify(envelope), enc: 1 });
         }
 
-        const me = await this.deriveDhKeypair();
-        const encrypted = await crypto.multiEncrypt(
-            [me.pubHex, partnerPub],
-            new TextEncoder().encode(trimmed),
-        );
-        const envelope = {
-            m: "dm",
-            r: encrypted.recipients.map((r) => [r.recipientPub, r.ephemeralPub, r.wrappedKey, r.wrapIv]),
-            i: encrypted.iv,
-            c: encrypted.ciphertext,
-        };
-        return writer.writeConnectionRow(
-            this.wallet,
-            partner,
-            CHAT_DB_ROOT,
-            JSON.stringify({ ...base, text: JSON.stringify(envelope), enc: 1 }),
-        );
+        await assertCanPayRowWrite(this.wallet, rowJson);
+        return writer.writeConnectionRow(this.wallet, partner, CHAT_DB_ROOT, rowJson);
     }
 
     // Tries to decrypt a row's `text` field if it looks like a DM envelope.
